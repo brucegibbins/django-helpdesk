@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 from datetime import timedelta
 from django.conf import settings as django_settings
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, MultipleObjectsReturned
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import Q
 from django.utils import encoding, timezone
@@ -785,13 +785,24 @@ def extract_part_data(
             )
             logger.debug("Discovered HTML MIME part")
     else:
+        logger.debug(f"Found NON TEXT MIME PART: [{part.get_content_maintype()}] ")
         if not name:
             ext = mimetypes.guess_extension(part.get_content_type())
             name = f"part-{counter}{ext}"
         else:
             name = f"part-{counter}_{name}"
+
+        logger.debug(f"Collect Message Payload. Is MultiPart? {part.is_multipart()}")
         payload = part.as_string() if part.is_multipart() else part.get_payload(decode=True)
+
+        logger.debug(f"Collect File Attachment. {name} as {mimetypes.guess_type(name)[0]}. With Payload Type of: {type(payload)}")
+        if isinstance(payload, str):
+            logger.debug("Turn <str> Payload into a bytes-like object by encoding")
+            payload = payload.encode('utf-8')
+            logger.debug(f"Payload Type of: {type(payload)}")
+
         files.append(SimpleUploadedFile(name, payload, mimetypes.guess_type(name)[0]))
+
         logger.debug("Found MIME attachment %s", name)
     return part_body, part_full_body
 
